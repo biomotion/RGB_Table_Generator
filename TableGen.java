@@ -1,17 +1,18 @@
 //TableGen.java
 /*------------------
     Auther: SC, Lee
-    Date:       5/2
-    Version:    0.3.0
+    Date:       5/9
+    Version:    0.4.0
     Function:   Can paint with different color on a panel.
                 Can choose color from left side.
                 Use only color chooser to change color
                 Can modify pattern size
                 Clear the block by right click
                 Export the file by message Dialog
-               *Fixed Rows, Cols modified event bug
-               *Can import the table code
-               
+                Fixed Rows, Cols modified event bug
+                Can import the table code
+               *Display the rgb value respectly when color changed
+               *Brighter and Darker button is added to the left
 ------------------*/ 
 
 import java.util.Scanner;
@@ -86,7 +87,7 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
             repaint();
         }
     }
-
+    
     public void clearPattern(){
         for(int i=0; i<patternSizeX; i++)
             for(int j=0; j<patternSizeY; j++)
@@ -131,9 +132,14 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
             for(int j=0; j<patternColors[i].length; j++){
                 result += "{" + patternColors[i][j].getRed() + "," 
                         + patternColors[i][j].getGreen() + "," 
-                + patternColors[i][j].getBlue() + "}, ";
+                + patternColors[i][j].getBlue() + "} ";
+                if(j < patternColors[i].length -1)
+                    result += ",";
             }
-            result += "},\n";
+            if(i < patternColors.length -1)
+                result += "},\n";
+            else 
+                result += "}\n";
         }
         result += "}\n";
         
@@ -176,11 +182,26 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
         }
         repaint();
     }
-    public Color getColor(int x, int y){
+    public Color getBlockColor(int x, int y){
         if(x>0 && x<getWidth() && y>0 && y<getHeight())
             return patternColors[x*patternSizeX/getWidth()][y*patternSizeY/getHeight()];
         else
-            return null;
+            return backColor;
+    }
+    
+    public void makeBrighter(){
+        for(int i=0; i<patternSizeX; i++)
+            for(int j=0; j<patternSizeY; j++)
+                if(patternColors[i][j] != Color.BLACK)
+                    patternColors[i][j] = patternColors[i][j].brighter();
+        repaint();
+    }
+    public void makeDarker(){
+        for(int i=0; i<patternSizeX; i++)
+            for(int j=0; j<patternSizeY; j++)
+                if(patternColors[i][j] != Color.BLACK)
+                    patternColors[i][j] = patternColors[i][j].darker();
+        repaint();
     }
     
     //Mouse Events 
@@ -188,6 +209,7 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
     public void mouseReleased(MouseEvent event) {}
     public void mouseClicked(MouseEvent e) {
         System.out.println("Mouse Clicked. " + e.getX() + ", " + e.getY());
+        System.out.println("" + e.getX()*patternSizeX/getWidth() + ", " + e.getY()*patternSizeY/getHeight());
         if(e.getButton() == e.BUTTON1)
             drawBlock(e.getX(), e.getY());
         else if(e.getButton() == e.BUTTON3)
@@ -208,20 +230,22 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
 }
 
 class ColorPanel extends JPanel implements DocumentListener, ActionListener{
-    JLabel rowLabel = new JLabel("Rows:"), colLabel = new JLabel("Columns:");
     JTextField rowField = new JTextField("24", 5), colField = new JTextField("24", 5);
     JButton rowAddButton = new JButton("+"), rowSubButton = new JButton("-");
     JButton colAddButton = new JButton("+"), colSubButton = new JButton("-");
     JButton importButton = new JButton("IMPORT"), exportButton = new JButton("EXPORT");
-    JLabel currenColorLabel = new JLabel("Current Pen Color:");
     JTextField currenColorField = new JTextField(5);
+    JTextField rField = new JTextField(4), gField = new JTextField(4), bField = new JTextField(4);
+    JButton brighterButton = new JButton("BRIGHTER"), darkerButton = new JButton("DARKER");
+    JScrollBar brightnessBar = new JScrollBar(JScrollBar.HORIZONTAL);
     JButton colorChooserButton = new JButton("Color Chooser");
     JButton clearButton = new JButton("Clear");
 
     DrawPanel p;
     ColorPanel(DrawPanel panel){
         p = panel;
-        int numOfRows = 8;
+        setPen(Color.WHITE);
+        int numOfRows = 9;
         setLayout(new GridLayout(numOfRows, 1, 20, 0));
         JPanel[] panelArr = new JPanel[numOfRows];
         for(int i=0; i<numOfRows; i++){
@@ -251,32 +275,60 @@ class ColorPanel extends JPanel implements DocumentListener, ActionListener{
         
         currenColorField.setEditable(false);
         currenColorField.setBackground(p.getPenColor());
+        
+        brighterButton.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                p.makeBrighter();
+            }
+        });
+        darkerButton.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                p.makeDarker();
+            }
+        });
+        
+        
         colorChooserButton.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 Color c = JColorChooser.showDialog(ColorPanel.this, "Color Chooser", p.getPenColor());
                 setPen(c);
             }
         });
+        
+        
+        
+        
         clearButton.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 p.clearPattern();
             }
         });
         
-        panelArr[0].add(colLabel);
+        panelArr[0].add(new JLabel("Columns:"));
         panelArr[0].add(colField);
         panelArr[0].add(colAddButton);
         panelArr[0].add(colSubButton);
-        panelArr[1].add(rowLabel);
+        panelArr[1].add(new JLabel("Rows:"));
         panelArr[1].add(rowField);
         panelArr[1].add(rowAddButton);
         panelArr[1].add(rowSubButton);
         panelArr[2].add(importButton);
-        panelArr[3].add(exportButton);
-        panelArr[4].add(currenColorLabel);
-        panelArr[4].add(currenColorField);
-        panelArr[5].add(colorChooserButton);
-        panelArr[6].add(clearButton);
+        panelArr[2].add(exportButton);
+        panelArr[3].add(new JLabel("Current Pen Color:"));
+        panelArr[3].add(currenColorField);
+        panelArr[4].add(new JLabel("R:"));
+        panelArr[4].add(rField);
+        panelArr[4].add(new JLabel("G:"));
+        panelArr[4].add(gField);
+        panelArr[4].add(new JLabel("B:"));
+        panelArr[4].add(bField);
+        panelArr[5].add(brighterButton);
+        panelArr[5].add(darkerButton);
+        
+        // panelArr[5].add(new JLabel("Brightness"), BorderLayout.NORTH);
+        //panelArr[5].add(brightnessBar, BorderLayout.SOUTH);
+        panelArr[6].add(colorChooserButton);
+        panelArr[7].add(clearButton);
         
 
     }
@@ -284,6 +336,9 @@ class ColorPanel extends JPanel implements DocumentListener, ActionListener{
     public void setPen(Color c){
         currenColorField.setBackground(c);
         p.setPenColor(c);
+        rField.setText(Integer.toString(c.getRed()));
+        gField.setText(Integer.toString(c.getGreen()));
+        bField.setText(Integer.toString(c.getBlue()));
     }
     
     public int getCols(){
