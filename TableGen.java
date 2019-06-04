@@ -1,11 +1,15 @@
 //TableGen.java
-/*---------------
-    Auther:     SC, Lee
+/*------------------
+    Auther: SC, Lee
     Date:       4/30
-    Version:    0.1.0
+    Version:    0.2.0
     Function:   Can paint with different color on a panel.
                 Can choose color from left side.
----------------*/
+               *Use only color chooser to change color
+               *Can modify pattern size
+               *Clear the block by right click
+               *Export the file by message Dialog
+------------------*/ 
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -15,14 +19,12 @@ import java.awt.event.*;
 public class TableGen{
     public static void main(String[] args){
         JFrame win = new JFrame("POV Table Code Generator");
-        DrawPanel drawPanel = new DrawPanel();
-        JButton generateButton = new JButton("GENERATE");
+        DrawPanel drawPanel = new DrawPanel(24, 24);
         ColorPanel colorPanel = new ColorPanel(drawPanel);
 
         win.setSize(720, 600);
         win.add(drawPanel);
         win.add(colorPanel, BorderLayout.WEST);
-        win.add(generateButton, BorderLayout.SOUTH);
         win.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         win.setVisible(true);
         
@@ -34,12 +36,12 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
     Color[][] patternColors;
     Color penColor;
     public static Color backColor = Color.BLACK;
-    DrawPanel(){
+    DrawPanel(int cols, int rows){
         super();
         this.addMouseListener(this);
         this.addMouseMotionListener(this);
-        patternSizeX = 24;
-        patternSizeY = 24; //Y is the pixels your pov have
+        patternSizeX = cols;
+        patternSizeY = rows; //Y is the pixels your pov have
         penColor = Color.WHITE;
         patternColors = new Color[patternSizeX][];
         for(int i=0; i<patternSizeX; i++){
@@ -48,7 +50,6 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
                 patternColors[i][j] = backColor;
         }
     }
-
     public void paintComponent(Graphics g){
         super.paintComponent(g);
 
@@ -68,10 +69,18 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
         //horizontal lines
         for(int i=1; i<patternSizeY; i++)
             g.drawLine(0, (int)blockHeight*i, getWidth(), (int)blockHeight*i);
-
     }
     void drawBlock(int x, int y){
-        patternColors[x*patternSizeX/getWidth()][y*patternSizeY/getHeight()] = penColor;
+        if(x>0 && x<getWidth() && y>0 && y<getHeight()){
+            patternColors[x*patternSizeX/getWidth()][y*patternSizeY/getHeight()] = penColor;
+            repaint();
+        }
+    }
+    void clearBlock(int x, int y){
+        if(x>0 && x<getWidth() && y>0 && y<getHeight()){
+            patternColors[x*patternSizeX/getWidth()][y*patternSizeY/getHeight()] = backColor;
+            repaint();
+        }
     }
     public void clearPattern(){
         for(int i=0; i<patternSizeX; i++)
@@ -79,159 +88,135 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
                 patternColors[i][j] = backColor;
         repaint();
     }
-    public void setPenColor(Color pc){ penColor = pc; }
-    public Color getPenColor() { return penColor; }
-    //Mouse Events 
-
-    public void mousePressed(MouseEvent event) {}
-
-    public void mouseReleased(MouseEvent event) {}
-
-    public void mouseClicked(MouseEvent event) {
-        System.out.println("Mouse Clicked. " + event.getX() + ", " + event.getY());
-        if(event.getButton() == event.BUTTON1){
-            drawBlock(event.getX(), event.getY());
+    public void setPatternSize(int cols, int rows){
+        patternSizeX = cols;
+        patternSizeY = rows;
+        patternColors = new Color[patternSizeX][];
+        for(int i=0; i<patternSizeX; i++){
+            patternColors[i] = new Color[patternSizeY];
+            for(int j=0; j<patternSizeY; j++)
+                patternColors[i][j] = backColor;
         }
+        System.gc();
         repaint();
     }
-
+    public void setPenColor(Color pc){ penColor = pc; }
+    public Color getPenColor() { return penColor; }
+    public void exportTable(){
+        String result = "byte table[" + patternSizeX + "][" + patternSizeY + "][3] = \n";
+        JTextArea resultArea = new JTextArea(patternSizeX + 4, patternSizeY*3 + 4);
+        result += "{ \n";
+        for(int i=0; i<patternColors.length; i++){
+            result += "    {";
+            for(int j=0; j<patternColors[i].length; j++){
+                result += "{" + patternColors[i][j].getRed() + "," 
+                        + patternColors[i][j].getGreen() + "," 
+                + patternColors[i][j].getBlue() + "}, ";
+            }
+            result += "},\n";
+        }
+        result += "}\n";
+        
+        resultArea.setText(result);
+        JOptionPane.showMessageDialog(null, new JScrollPane(resultArea), "RESULT TABLE", JOptionPane.INFORMATION_MESSAGE);
+               
+    }
+    //Mouse Events 
+    public void mousePressed(MouseEvent event) {}
+    public void mouseReleased(MouseEvent event) {}
+    public void mouseClicked(MouseEvent e) {
+        System.out.println("Mouse Clicked. " + e.getX() + ", " + e.getY());
+        if(e.getButton() == e.BUTTON1)
+            drawBlock(e.getX(), e.getY());
+        else if(e.getButton() == e.BUTTON3)
+            clearBlock(e.getX(), e.getY());
+    }
     public void mouseExited(MouseEvent event) {}
-
     public void mouseEntered(MouseEvent event) {}
     //Mouse Motion Events
-
     public void mouseDragged(MouseEvent e) {
         System.out.println("Mosue Dragged. " + e.getX() + ", " + e.getY());
         int b1 = e.BUTTON1_DOWN_MASK;
-        if(e.getModifiersEx() == b1){
+        if(e.getModifiersEx() == b1)
             drawBlock(e.getX(), e.getY());
-        }
-        repaint();
+        else if(e.getModifiersEx() == e.BUTTON3_DOWN_MASK)
+            clearBlock(e.getX(), e.getY());
+        
     }
-
     public void mouseMoved(MouseEvent event) {}
 }
 
-class ColorPanel extends JPanel implements ActionListener, DocumentListener{
+class ColorPanel extends JPanel implements DocumentListener{
+    JLabel rowLabel = new JLabel("Rows:"), colLabel = new JLabel("Columns:");
+    JTextField rowField = new JTextField("24", 5), colField = new JTextField("24", 5);
+    JButton importButton = new JButton("IMPORT"), exportButton = new JButton("EXPORT");
     JLabel currenColorLabel = new JLabel("Current Pen Color:");
     JTextField currenColorField = new JTextField(5);
-    JTextField redField = new JTextField("255", 5), greenField = new JTextField("255", 5), blueField = new JTextField("255", 5);
-    JLabel redLabel = new JLabel("RED(0~~255):"), greenLabel = new JLabel("GREEN(0~255):"), blueLabel = new JLabel("BLUE(0~255):");
-    JLabel colorCodeLabel = new JLabel("Color Code:");
-    JTextField colorCodeField = new JTextField("FFFFFF", 6);
-    JButton clearButton = new JButton("Clear");
     JButton colorChooserButton = new JButton("Color Chooser");
+    JButton clearButton = new JButton("Clear");
+
     DrawPanel p;
     ColorPanel(DrawPanel panel){
         p = panel;
-        setLayout(new GridLayout(9, 1, 20, 0));
-        JPanel[] panelArr = new JPanel[9];
-        for(int i=0; i<9; i++){
-            if(i != 5)
-                panelArr[i] = new JPanel();
-            else
-                panelArr[5] = new ColorExamplePanel();
+        int numOfRows = 8;
+        setLayout(new GridLayout(numOfRows, 1, 20, 0));
+        JPanel[] panelArr = new JPanel[numOfRows];
+        for(int i=0; i<numOfRows; i++){
+            panelArr[i] = new JPanel();
             this.add(panelArr[i]);
         }
+        
+        rowField.getDocument().addDocumentListener(this);
+        colField.getDocument().addDocumentListener(this);
+        
+        exportButton.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                p.exportTable();
+            }
+        });
+        
         currenColorField.setEditable(false);
         currenColorField.setBackground(p.getPenColor());
-        panelArr[0].add(currenColorLabel);
-        panelArr[0].add(currenColorField);
-        
-        redField.getDocument().addDocumentListener(this);
-        greenField.getDocument().addDocumentListener(this);
-        blueField.getDocument().addDocumentListener(this);
-        colorCodeField.getDocument().addDocumentListener(this);
-        colorChooserButton.addActionListener(this);
+        colorChooserButton.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                Color c = JColorChooser.showDialog(ColorPanel.this, "Color Chooser", p.getPenColor());
+                setPen(c);
+            }
+        });
         clearButton.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 p.clearPattern();
             }
         });
         
-        for(int i=1; i<=3; i++)
-            panelArr[i].setLayout(new FlowLayout());
-        panelArr[1].add(redLabel);
-        panelArr[1].add(redField);
-        panelArr[2].add(greenLabel);
-        panelArr[2].add(greenField);
-        panelArr[3].add(blueLabel);
-        panelArr[3].add(blueField);
-        panelArr[4].add(colorCodeLabel);
-        panelArr[4].add(colorCodeField);
-        panelArr[6].add(colorChooserButton);
-        panelArr[7].add(clearButton);
         
-    }
-    
-    public void genColor(){
-        int r=0, g=0, b=0;
-        try{
-            r = Integer.parseInt(redField.getText());
-            g = Integer.parseInt(greenField.getText());
-            b = Integer.parseInt(blueField.getText());
-            setPen(new Color(r, g, b));
-        }catch(NumberFormatException e){ }
+        panelArr[0].add(rowLabel);
+        panelArr[0].add(rowField);
+        panelArr[1].add(colLabel);
+        panelArr[1].add(colField);
+        panelArr[2].add(importButton);
+        panelArr[3].add(exportButton);
+        panelArr[4].add(currenColorLabel);
+        panelArr[4].add(currenColorField);
+        panelArr[5].add(colorChooserButton);
+        panelArr[6].add(clearButton);
+        
+
     }
     
     public void setPen(Color c){
         currenColorField.setBackground(c);
         p.setPenColor(c);
-        // redField.setText(Integer.toString(c.getRed()));
-        // greenField.setText(Integer.toString(c.getGreen()));
-        // blueField.setText(Integer.toString(c.getBlue()));
-        // colorCodeField.setText(Integer.toString(c.getRGB(), 16));
     }
     
-    public void actionPerformed(ActionEvent e){
-        if(e.getSource() == colorChooserButton){
-            Color c = JColorChooser.showDialog(this, "Color Chooser", p.getPenColor());
-            setPen(c);
-        }
-            
-    }
-    public void changedUpdate(DocumentEvent e) {
-        System.out.println("Doc Changed");
-    }
-    public void removeUpdate(DocumentEvent e) {
-        System.out.println("Doc Remove");
-        if(e.getDocument() != colorCodeField.getDocument())
-            genColor();
-        else{
-            int newColor = 0xFFFFFF;
-            try{
-                newColor = Integer.parseInt(colorCodeField.getText(), 16);
-            }catch(NumberFormatException exc){ 
-                try{
-                    newColor = Integer.parseInt(colorCodeField.getText());
-                }catch(NumberFormatException excpt) { return; }
-            }
-            setPen(new Color(newColor));
-        }
-    }
+    
+    public void changedUpdate(DocumentEvent e) {}
     public void insertUpdate(DocumentEvent e) {
-        System.out.println("Doc insert");
-        if(e.getDocument() != colorCodeField.getDocument())
-            genColor();
-        else{
-            int newColor = 0xFFFFFF;
-            try{
-                newColor = Integer.parseInt(colorCodeField.getText(), 16);
-            }catch(NumberFormatException exc){ 
-                try{
-                    newColor = Integer.parseInt(colorCodeField.getText());
-                }catch(NumberFormatException excpt) { return; }
-            }
-            setPen(new Color(newColor));
-        }
+        try{
+            int rows = Integer.parseInt(rowField.getText());
+            int cols = Integer.parseInt(colField.getText());
+            p.setPatternSize(rows, cols);
+        }catch(NumberFormatException exc){ return; }
     }
-}
-
-class ColorExamplePanel extends JPanel implements MouseListener{
-
-    public void mouseClicked(MouseEvent e) {}
-    public void mouseEntered(MouseEvent e) {}
-    public void mousePressed(MouseEvent e) {}
-    public void mouseReleased(MouseEvent e) {}
-    public void mouseExited(MouseEvent e) {}
+    public void removeUpdate(DocumentEvent e) {}
 }
