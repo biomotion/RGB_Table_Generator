@@ -1,16 +1,20 @@
 //TableGen.java
 /*------------------
     Auther: SC, Lee
-    Date:       4/30
-    Version:    0.2.0
+    Date:       5/2
+    Version:    0.3.0
     Function:   Can paint with different color on a panel.
                 Can choose color from left side.
-               *Use only color chooser to change color
-               *Can modify pattern size
-               *Clear the block by right click
-               *Export the file by message Dialog
+                Use only color chooser to change color
+                Can modify pattern size
+                Clear the block by right click
+                Export the file by message Dialog
+               *Fixed Rows, Cols modified event bug
+               *Can import the table code
+               
 ------------------*/ 
 
+import java.util.Scanner;
 import javax.swing.*;
 import javax.swing.event.*;
 import java.awt.*;
@@ -62,7 +66,7 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
                 g.fillRect((int)blockWidth*i, (int)blockHeight*j, (int)blockWidth*(i+1), (int)blockHeight*(j+1)); 
             }
         //drawing grids
-        g.setColor(Color.BLACK);
+        g.setColor(Color.GRAY);
         //vertical lines
         for(int i=1; i<patternSizeX; i++)
             g.drawLine((int)blockWidth*i, 0, (int)blockWidth*i, getHeight());
@@ -82,6 +86,7 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
             repaint();
         }
     }
+
     public void clearPattern(){
         for(int i=0; i<patternSizeX; i++)
             for(int j=0; j<patternSizeY; j++)
@@ -89,14 +94,29 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
         repaint();
     }
     public void setPatternSize(int cols, int rows){
+        // patternSizeX = cols;
+        // patternSizeY = rows;
+        // patternColors = new Color[patternSizeX][];
+        // for(int i=0; i<patternSizeX; i++){
+            // patternColors[i] = new Color[patternSizeY];
+            // for(int j=0; j<patternSizeY; j++)
+                // patternColors[i][j] = backColor;
+        // }
+        
+        Color[][] resizedPattern = new Color[cols][];
+        for(int i=0; i<cols; i++){
+            resizedPattern[i] = new Color[rows];
+            for(int j=0; j<rows; j++){
+                if(i<patternSizeX && j < patternSizeY)
+                    resizedPattern[i][j] = patternColors[i][j];
+                else
+                    resizedPattern[i][j] = backColor;
+            }
+        }
+        
         patternSizeX = cols;
         patternSizeY = rows;
-        patternColors = new Color[patternSizeX][];
-        for(int i=0; i<patternSizeX; i++){
-            patternColors[i] = new Color[patternSizeY];
-            for(int j=0; j<patternSizeY; j++)
-                patternColors[i][j] = backColor;
-        }
+        patternColors = resizedPattern;
         System.gc();
         repaint();
     }
@@ -121,6 +141,48 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
         JOptionPane.showMessageDialog(null, new JScrollPane(resultArea), "RESULT TABLE", JOptionPane.INFORMATION_MESSAGE);
                
     }
+    public void importTable(int cols, int rows){
+        JTextArea codeArea = new JTextArea(cols + 4, rows*3 + 4);
+        String codeString;
+        JOptionPane.showMessageDialog(null, "The code should contain the very first \"{\" of the array\n" +
+                                            "for example:\n" + 
+                                            "{\n" +
+                                            "{{0, 0, 0}, {0, 0, 0}},\n" +
+                                            " {0, 0, 0}, {0, 0, 0}}\n" +
+                                            "}\n" + 
+                                            "for importing a 2*2 pattern", "NOTICE", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(null, new JScrollPane(codeArea), "IMPORT TABLE", JOptionPane.INFORMATION_MESSAGE);
+        codeString = codeArea.getText();
+        //System.out.println(codeString);
+        Scanner lineReader = new Scanner(codeString);
+        String newLine;
+        int[] rgb = new int[3];
+        lineReader.nextLine();
+        for(int i=0; i<cols; i++){
+            Scanner reader = new Scanner(lineReader.nextLine()).useDelimiter("\\{|\\}|,| ");
+            for(int j=0; j<rows; j++){
+                for(int k=0; k<3; ){
+                    if(reader.hasNextInt()){
+                        rgb[k++] = reader.nextInt();
+                        patternColors[i][j] = new Color(rgb[0], rgb[1], rgb[2]);
+                    }else if(reader.hasNext())
+                        reader.next();
+                    else
+                        break;
+                }
+                if(!lineReader.hasNextLine())
+                    break;
+            }
+        }
+        repaint();
+    }
+    public Color getColor(int x, int y){
+        if(x>0 && x<getWidth() && y>0 && y<getHeight())
+            return patternColors[x*patternSizeX/getWidth()][y*patternSizeY/getHeight()];
+        else
+            return null;
+    }
+    
     //Mouse Events 
     public void mousePressed(MouseEvent event) {}
     public void mouseReleased(MouseEvent event) {}
@@ -136,8 +198,7 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
     //Mouse Motion Events
     public void mouseDragged(MouseEvent e) {
         System.out.println("Mosue Dragged. " + e.getX() + ", " + e.getY());
-        int b1 = e.BUTTON1_DOWN_MASK;
-        if(e.getModifiersEx() == b1)
+        if(e.getModifiersEx() == e.BUTTON1_DOWN_MASK)
             drawBlock(e.getX(), e.getY());
         else if(e.getModifiersEx() == e.BUTTON3_DOWN_MASK)
             clearBlock(e.getX(), e.getY());
@@ -146,9 +207,11 @@ class DrawPanel extends JPanel implements MouseListener, MouseMotionListener{
     public void mouseMoved(MouseEvent event) {}
 }
 
-class ColorPanel extends JPanel implements DocumentListener{
+class ColorPanel extends JPanel implements DocumentListener, ActionListener{
     JLabel rowLabel = new JLabel("Rows:"), colLabel = new JLabel("Columns:");
     JTextField rowField = new JTextField("24", 5), colField = new JTextField("24", 5);
+    JButton rowAddButton = new JButton("+"), rowSubButton = new JButton("-");
+    JButton colAddButton = new JButton("+"), colSubButton = new JButton("-");
     JButton importButton = new JButton("IMPORT"), exportButton = new JButton("EXPORT");
     JLabel currenColorLabel = new JLabel("Current Pen Color:");
     JTextField currenColorField = new JTextField(5);
@@ -165,13 +228,24 @@ class ColorPanel extends JPanel implements DocumentListener{
             panelArr[i] = new JPanel();
             this.add(panelArr[i]);
         }
+
+        colField.getDocument().addDocumentListener(this);
+        colAddButton.addActionListener(this);
+        colSubButton.addActionListener(this);
         
         rowField.getDocument().addDocumentListener(this);
-        colField.getDocument().addDocumentListener(this);
+        rowAddButton.addActionListener(this);
+        rowSubButton.addActionListener(this);
         
         exportButton.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 p.exportTable();
+            }
+        });
+        
+        importButton.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                p.importTable(ColorPanel.this.getCols(), ColorPanel.this.getRows());
             }
         });
         
@@ -189,11 +263,14 @@ class ColorPanel extends JPanel implements DocumentListener{
             }
         });
         
-        
-        panelArr[0].add(rowLabel);
-        panelArr[0].add(rowField);
-        panelArr[1].add(colLabel);
-        panelArr[1].add(colField);
+        panelArr[0].add(colLabel);
+        panelArr[0].add(colField);
+        panelArr[0].add(colAddButton);
+        panelArr[0].add(colSubButton);
+        panelArr[1].add(rowLabel);
+        panelArr[1].add(rowField);
+        panelArr[1].add(rowAddButton);
+        panelArr[1].add(rowSubButton);
         panelArr[2].add(importButton);
         panelArr[3].add(exportButton);
         panelArr[4].add(currenColorLabel);
@@ -209,6 +286,40 @@ class ColorPanel extends JPanel implements DocumentListener{
         p.setPenColor(c);
     }
     
+    public int getCols(){
+        int c=0;
+        try{
+            c = Integer.parseInt(colField.getText());
+        }catch(NumberFormatException e){ return 0; }
+
+        return c;
+    }
+    
+    public int getRows(){
+        int r=0;
+        try{
+            r = Integer.parseInt(rowField.getText());
+        }catch(NumberFormatException e){ return 0; }
+
+        return r;
+    }
+    
+    public void actionPerformed(ActionEvent e){
+        int x = getCols();
+        int y = getRows();
+        if(e.getSource() == rowAddButton)
+            y++;
+        else if(e.getSource() == rowSubButton)
+            y = Math.max(1, y-1);
+        else if(e.getSource() == colAddButton)
+            x++;
+        else if(e.getSource() == colSubButton)
+            x = Math.max(1, x-1);
+        rowField.setText(Integer.toString(y));
+        colField.setText(Integer.toString(x));
+        p.setPatternSize(x, y);
+    }
+    
     
     public void changedUpdate(DocumentEvent e) {}
     public void insertUpdate(DocumentEvent e) {
@@ -218,5 +329,11 @@ class ColorPanel extends JPanel implements DocumentListener{
             p.setPatternSize(rows, cols);
         }catch(NumberFormatException exc){ return; }
     }
-    public void removeUpdate(DocumentEvent e) {}
+    public void removeUpdate(DocumentEvent e) {
+        try{
+            int rows = Integer.parseInt(rowField.getText());
+            int cols = Integer.parseInt(colField.getText());
+            p.setPatternSize(rows, cols);
+        }catch(NumberFormatException exc){ return; }
+    }
 }
